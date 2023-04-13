@@ -1,0 +1,166 @@
+ function CreateInventoryDetailSubrecord_Bin_Lot(ir_record, inventorynumberSearchObj) {
+
+        const logTitle = 'CreateInventoryDetailSubrecord_Bin_Lot';
+
+        try {
+
+            var remainingQuantityToAllocateInLots,
+                newInventoryDetailSubrecord,
+                inventorynumber,
+                binnumber,
+                status
+
+            remainingQuantityToAllocateInLots = ir_record.getCurrentSublistValue({
+                sublistId: 'item',
+                fieldId: 'quantity'
+            })
+
+            newInventoryDetailSubrecord = ir_record.getCurrentSublistSubrecord({
+                sublistId: 'item',
+                fieldId: 'inventorydetail'
+            });
+
+            inventorynumberSearchObj.run().each(function (result) {
+
+                log.debug(logTitle, `remainingQuantityToAllocateInLots: ` + remainingQuantityToAllocateInLots);
+
+                if (remainingQuantityToAllocateInLots > 0) {
+
+                    lotAvailableQuantity = result.getValue({ name: 'itemcount', summary: 'SUM' });
+                    inventorynumber = result.getValue({ name: 'inventorynumber', summary: 'GROUP' });
+                    binnumber = result.getValue({ name: 'binnumber', summary: 'GROUP' });
+                    status = result.getValue({ name: 'status', summary: 'GROUP' });
+                    let statustext = result.getText({ name: 'status', summary: 'GROUP' });
+                    newInventoryDetailSubrecord.selectNewLine({ sublistId: 'inventoryassignment' });
+
+                    log.debug(logTitle, `lotAvailableQuantity: ` + lotAvailableQuantity);
+                    log.debug(logTitle, `inventorynumber: ` + inventorynumber);
+                    log.debug(logTitle, `binnumber: ` + binnumber);
+                    log.debug(logTitle, `status: ` + status);
+                    log.debug(logTitle, `status text: ` + statustext);
+
+                    if (remainingQuantityToAllocateInLots <= lotAvailableQuantity) {
+
+                        newInventoryDetailSubrecord.setCurrentSublistValue({
+                            sublistId: 'inventoryassignment',
+                            fieldId: 'quantity',
+                            value: remainingQuantityToAllocateInLots
+                        });
+
+                        remainingQuantityToAllocateInLots = 0;
+
+                    } else {
+
+                        newInventoryDetailSubrecord.setCurrentSublistValue({
+                            sublistId: 'inventoryassignment',
+                            fieldId: 'quantity',
+                            value: lotAvailableQuantity
+                        });
+
+                        remainingQuantityToAllocateInLots -= lotAvailableQuantity;
+                    }
+
+                    newInventoryDetailSubrecord.setCurrentSublistValue({
+                        sublistId: 'inventoryassignment',
+                        fieldId: 'issueinventorynumber',
+                        value: inventorynumber
+                    });
+
+                    // newInventoryDetailSubrecord.setCurrentSublistValue({
+                    //     sublistId: 'inventoryassignment',
+                    //     fieldId: 'tobinnumber',
+                    //     value: binnumber
+                    // });
+
+                    newInventoryDetailSubrecord.setCurrentSublistValue({
+                        sublistId: 'inventoryassignment',
+                        fieldId: 'binnumber',
+                        value: binnumber
+                    });
+
+                    //var status = 1 // Status = Good
+                    newInventoryDetailSubrecord.setCurrentSublistValue({
+                        sublistId: 'inventoryassignment',
+                        fieldId: 'inventorystatus',
+                        value: parseInt(status)
+                    });
+
+                    //var status = 1 // Status = Good
+                    // newInventoryDetailSubrecord.setCurrentSublistValue({
+                    //     sublistId: 'inventoryassignment',
+                    //     fieldId: 'toinventorystatus',
+                    //     value: parseInt(status)
+                    // });
+
+
+
+                    newInventoryDetailSubrecord.commitLine({
+                        sublistId: 'inventoryassignment'
+                    });
+
+                    return true;
+
+                } else {
+
+                    return false;
+                }
+            });
+
+        } catch (error) {
+
+            log.error(logTitle, error);
+        }
+    }
+
+
+    function getBinLocation(itemLocationId) {
+
+        const logTitle = 'getBinLocation';
+
+        try {
+
+            var binSearchObj = search.create({
+                type: "bin",
+                filters:
+                    [
+                        ["location", "anyof", itemLocationId]
+                    ],
+                columns:
+                    [
+                        search.createColumn({
+                            name: "binnumber",
+                            sort: search.Sort.ASC,
+                            label: "Bin Number"
+                        }),
+                        search.createColumn({ name: "internalid", label: "Internal ID" })
+                    ]
+            });
+
+            var binLocation
+            binSearchObj.run().each(function (result) {
+                // No 'return true' as for getting the first one
+
+                binLocation = result.getValue({ name: 'internalid' });
+
+            });
+
+            return binLocation;
+
+        } catch (error) {
+
+            log.error(logTitle, error);
+        }
+
+    }
+
+
+    //Funcion isEmpty 
+    function isEmpty(stValue) {
+        return ((stValue === '' || stValue == null || stValue == undefined) || (stValue.constructor === Array && stValue.length == 0) ||
+            (stValue.constructor === Object && (function (v) { for (var k in v) return false; return true; })(stValue)));
+    }
+
+    return {
+        post: postMethod
+    }
+});
